@@ -9,20 +9,13 @@
 //   2. double press feature support
 //   3. assert that the skin window thread is also these functions' caller
 
-LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
-
-	CWPSTRUCT *detail_ptr = (CWPSTRUCT *)lParam;
-	if (detail_ptr->message == WM_KEYDOWN)
-		MessageBox(NULL, L"Fired by rainmeter", L"Test.dll", MB_OK);
-
-	return CallNextHookEx(NULL, nCode, wParam, lParam);
-}
-
 class rm_measure_data{
 
 private:
 
 	WCHAR		log_message[1024];
+
+	void	   *skin;
 
 	HWND		skin_window;
 	DWORD		skin_window_thread_id;
@@ -42,6 +35,8 @@ public:
 	rm_measure_data(void *rm):
 	  modifiers(0U), atom_value(0), hot_key_registered(false)
 	{
+		// get skin
+		skin = RmGetSkin(rm);
 		// get skin window handle
 		skin_window = RmGetSkinWindow(rm);
 		// get thread id
@@ -100,7 +95,7 @@ public:
 		}
 		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
 		//
-		hook = SetWindowsHookEx(WH_CALLWNDPROC, HookProc, NULL, skin_window_thread_id);
+		hook = SetWindowsHookEx(WH_GETMESSAGE, HookProc, NULL, skin_window_thread_id);
 		if (hook == NULL){
 			RmLog(LOG_ERROR, L"Test.dll: set message hook: failed");
 			return;
@@ -166,6 +161,16 @@ public:
 		delete reinterpret_cast<rm_measure_data *>(data);
 	}
 
+public:
+
+	static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
+		MSG	*detail = (MSG *)lParam;
+		if (detail->message == WM_HOTKEY)
+			MessageBox(NULL, L"Fired by rainmeter", L"Test.dll", MB_OK);
+
+		return CallNextHookEx(NULL, nCode, wParam, lParam);
+	}
+
 };
 
 // call after memory object "rm" created(launch/refresh skin: read local .ini file)
@@ -177,9 +182,6 @@ PLUGIN_EXPORT void Initialize(void** data, void* rm)
 
 // load something from memory object "rm"
 PLUGIN_EXPORT void Reload(void *, void *, double *){}
-
-// update data
-PLUGIN_EXPORT double Update(void *){ return 0.0; }
 
 // 
 PLUGIN_EXPORT void Finalize(void *data)
