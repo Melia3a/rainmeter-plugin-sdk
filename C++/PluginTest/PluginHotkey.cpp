@@ -1,6 +1,9 @@
 #include <cstdio>
 #include <cstring>
 
+#include <map>
+using std::map;
+
 #include <Windows.h>
 #include "../../API/RainmeterAPI.h"
 
@@ -21,26 +24,30 @@ private:
 
 	void	   *skin;
 	HWND		skin_window;
-	DWORD		skin_window_thread_id;
 
 	unsigned	modifiers, vk_code;
 	ATOM		atom_value;
 	BOOL		hot_key_registered;
 
-	HHOOK		hook;
+	WCHAR		command[256];
+
+private:
+
+	static map<DWORD,HHOOK> thread_hooks;
+	static map<HWND,rm_measure_data *> hot_keys;
 
 public:
 
 	rm_measure_data(void *rm):
-	  modifiers(0U), atom_value(0), hot_key_registered(false)
+	  modifiers(0U), vk_code(0U),
+	  atom_value(0),
+	  hot_key_registered(false)
 	{
 		WCHAR log_message[1024];	// for logging
 		// get skin
 		skin = RmGetSkin(rm);
 		// get skin window handle
 		skin_window = RmGetSkinWindow(rm);
-		// get thread id
-		skin_window_thread_id = GetWindowThreadProcessId(skin_window, NULL);
 		// read hot key setting
 		LPCWSTR key_name = RmReadString(rm, L"Key", L"");
 		vk_code = translate_key_code(key_name);
@@ -96,26 +103,14 @@ public:
 			return;
 		}
 		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
-		// set hook
-		hook = SetWindowsHookEx(WH_GETMESSAGE, HookProc, NULL, skin_window_thread_id);
-		if (hook == NULL){
-			RmLog(LOG_ERROR, L"Test.dll: set message hook: failed");
-			return;
-		}
-		RmLog(LOG_DEBUG, L"Test.dll: set message hook: succeed");
+		// read command
+		LPCWSTR rm_command = RmReadString(rm, L"Command", L"");
+		wsprintf(log_message, L"Test.dll: set command: %s", rm_command);
+		RmLog(LOG_DEBUG, log_message);
+		//
 	}
 
-	~rm_measure_data(){
-		// 
-		if (hook != NULL)
-			UnhookWindowsHookEx(hook);
-		// unregister hot key
-		if (hot_key_registered)
-			UnregisterHotKey(skin_window, atom_value);
-		// delete atom
-		if (atom_value != 0)
-			GlobalDeleteAtom(atom_value);
-	}
+	void sub_proc(){ RmExecute(skin, command); }
 
 private:
 
@@ -157,36 +152,7 @@ private:
 		return result;
 	}
 
-public:
-
-	static void release_data(void *data){
-		delete reinterpret_cast<rm_measure_data *>(data);
-	}
-
-public:
-
-	static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
-		MSG	*detail = (MSG *)lParam;
-		if (detail->message == WM_HOTKEY)
-			MessageBox(NULL, L"Fired by rainmeter", L"Test.dll", MB_OK);
-
-		return CallNextHookEx(NULL, nCode, wParam, lParam);
-	}
-
 };
 
-// call after memory object "rm" created(launch/refresh skin: read local .ini file)
-PLUGIN_EXPORT void Initialize(void** data, void* rm)
-{
-	// create data
-	*data = new rm_measure_data(rm);
-}
-
-// 
-PLUGIN_EXPORT void Reload(void *, void *, double *){}
-
-// 
-PLUGIN_EXPORT void Finalize(void *data)
-{
-	rm_measure_data::release_data(data);
-}
+map<DWORD,HHOOK> rm_measure_data::thread_hooks;
+map<HWND,rm_measure_data *> rm_measure_data::hot_keys;
