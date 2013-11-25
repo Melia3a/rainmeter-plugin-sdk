@@ -8,6 +8,12 @@
 //   1. MOD_NOREPEAT feature support
 //   2. double press feature support
 //   3. assert that the skin window thread is also these functions' caller
+//		because the Windows API RegisterHotKey has the feature which saying:
+//		This function cannot associate a hot key with a window created by another thread.
+//   4. assert that functions exported of this DLL will be used only in one thread of any process.
+//		meaning that the solution here is not for multi-thread
+//	 * typically, the RM create all its active skins (read file, create internal object,
+//	   create windows for each skin, call these functions) in a single thread
 
 class rm_measure_data{
 
