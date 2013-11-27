@@ -2,56 +2,106 @@
 #include <cstring>
 
 #include <map>
+using std::pair;
 using std::map;
+#include <list>
+using std::list;
+
 
 #include <Windows.h>
 #include "../../API/RainmeterAPI.h"
 
-// TODO:
-//   1. MOD_NOREPEAT feature support
-//   2. double press feature support
-//   3. assert that the skin window thread is also these functions' caller
-//		because the Windows API RegisterHotKey has the feature which saying:
-//		This function cannot associate a hot key with a window created by another thread.
-//   4. assert that functions exported of this DLL will be used only in one thread of any process.
-//		meaning that the solution here is not for multi-thread
-//	 * typically, the RM create all its active skins (read file, create internal object,
-//	   create windows for each skin, call these functions) in a single thread
+typedef map<unsigned long, void *>	hk_map;
+typedef pair<unsigned long, void *>	hk_map_pair;
 
-class rm_measure_data{
+static hk_map hot_keys;
+static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam);
+
+class thread_hook{
 
 private:
 
-	void	   *skin;
-	HWND		skin_window;
+	static unsigned	lock;
 
-	unsigned	modifiers, vk_code;
-	ATOM		atom_value;
-	BOOL		hot_key_registered;
-
-	WCHAR		command[256];
-
-private:
-
-	static map<DWORD,HHOOK> thread_hooks;
-	static map<HWND,rm_measure_data *> hot_keys;
+	static DWORD	thread_id;
+	static HHOOK	hook;
+	static unsigned	ref_count;
 
 public:
 
-	rm_measure_data(void *rm):
-	  modifiers(0U), vk_code(0U),
-	  atom_value(0),
-	  hot_key_registered(false)
+	static void add_hook(const DWORD &curr_tid){
+		// asks for access right
+		unsigned access_count;
+		for (;;){
+			access_count = InterlockedIncrement(&lock);
+			if (access_count == 1) break;
+			InterlockedDecrement(&lock);
+		}
+		//
+		if (thread_id == 0UL){
+			hook = SetWindowsHookEx(WH_GETMESSAGE, HookProc, NULL, curr_tid);
+			if (hook == NULL){
+				RmLog(LOG_ERROR, L"Test.dll: set message hook: failed");
+			}
+			else{
+				thread_id = curr_tid;
+				ref_count = 1U;
+				RmLog(LOG_DEBUG, L"Test.dll: set message hook: succeed");
+			}
+		}
+		else if (thread_id == curr_tid){
+			++ ref_count;	
+		}
+		InterlockedDecrement(&lock);
+	}
+	static void del_hook(const DWORD &thread_id){
+
+	}
+
+};
+
+unsigned	thread_hook::lock		= 0U;
+DWORD		thread_hook::thread_id	= 0UL;
+HHOOK		thread_hook::hook		= NULL;
+unsigned	thread_hook::ref_count	= 0U;
+
+class rm_measure{
+
+private:
+
+	void		   *skin;
+	HWND			skin_window;
+	DWORD			skin_thread_id;
+
+	union{
+		unsigned long as_ulong;
+		struct{
+			unsigned short modifiers;
+			unsigned short vk_code;
+		} as_2ushort;
+	}	 hot_key;
+	WCHAR			command[256];
+
+	ATOM			atom_value;
+	BOOL			key_registered;
+
+public:
+
+	rm_measure(void *rm):
+		atom_value(0), key_registered(false)
 	{
 		WCHAR log_message[1024];	// for logging
 		// get skin
 		skin = RmGetSkin(rm);
 		// get skin window handle
 		skin_window = RmGetSkinWindow(rm);
+		// get thread id, set hook
+		skin_thread_id = GetWindowThreadProcessId(skin_window, NULL);
+		thread_hook::add_hook(skin_thread_id);
 		// read hot key setting
 		LPCWSTR key_name = RmReadString(rm, L"Key", L"");
-		vk_code = translate_key_code(key_name);
-		if (vk_code == 0){
+		hot_key.as_2ushort.vk_code = translate_key_code(key_name);
+		if (hot_key.as_2ushort.vk_code == 0){
 			wsprintf(log_message, L"Test.dll: Invalid key value: %s", key_name);
 			RmLog(LOG_ERROR, log_message);
 			return;
@@ -63,17 +113,23 @@ public:
 		key_shift = RmReadInt(rm, L"Shift", 0);
 		key_win = RmReadInt(rm, L"Win", 0);
 		// make modifiers
-		if (key_alt)	modifiers |= MOD_ALT;
-		if (key_ctrl)	modifiers |= MOD_CONTROL;
-		if (key_shift)	modifiers |= MOD_SHIFT;
-		if (key_win)	modifiers |= MOD_WIN;
-		// for debug
+		hot_key.as_2ushort.modifiers = 0x00;
+		if (key_alt)	hot_key.as_2ushort.modifiers |= MOD_ALT;
+		if (key_ctrl)	hot_key.as_2ushort.modifiers |= MOD_CONTROL;
+		if (key_shift)	hot_key.as_2ushort.modifiers |= MOD_SHIFT;
+		if (key_win)	hot_key.as_2ushort.modifiers |= MOD_WIN;
 		wsprintf(log_message, L"Test.dll: confirm hot key: ");
 		if (key_alt) wsprintf(log_message+wcslen(log_message), L"ALT+");
 		if (key_ctrl) wsprintf(log_message+wcslen(log_message), L"CTRL+");
 		if (key_shift) wsprintf(log_message+wcslen(log_message), L"SHIFT+");
 		if (key_win) wsprintf(log_message+wcslen(log_message), L"WIN+");
-		wsprintf(log_message+wcslen(log_message), L"KEY(code:%x)", vk_code);
+		wsprintf(log_message+wcslen(log_message), L"%hx", hot_key.as_2ushort.vk_code);
+		wsprintf(log_message+wcslen(log_message), L": %lx", hot_key.as_ulong);
+		RmLog(LOG_DEBUG, log_message);
+		// get command
+		LPCWSTR cmd_temp = RmReadString(rm, L"Command", L"");
+		wcscpy_s(command, cmd_temp);
+		wsprintf(log_message, L"Test.dll: confirm command: %s", command);
 		RmLog(LOG_DEBUG, log_message);
 		// get atom
 		WCHAR atom_string[256];
@@ -97,26 +153,35 @@ public:
 		wsprintf(log_message+wcslen(log_message), L"succeed");
 		RmLog(LOG_DEBUG, log_message);
 		// register hot key
-		hot_key_registered = RegisterHotKey(skin_window, atom_value, modifiers, vk_code);
-		if (!hot_key_registered){
+		key_registered = RegisterHotKey(skin_window, atom_value,
+			hot_key.as_2ushort.modifiers, hot_key.as_2ushort.vk_code);
+		if (!key_registered){
 			RmLog(LOG_ERROR, L"Test.dll: register hot key: failed");
 			return;
 		}
 		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
-		// read command
-		LPCWSTR rm_command = RmReadString(rm, L"Command", L"");
-		wsprintf(log_message, L"Test.dll: set command: %s", rm_command);
-		RmLog(LOG_DEBUG, log_message);
-		//
+		hot_keys[hot_key.as_ulong] = this;	// add to hotkey list
 	}
 
-	void sub_proc(){ RmExecute(skin, command); }
+	~rm_measure(){
+		// delete hook
+		thread_hook::del_hook(skin_thread_id);
+		//
+		if (key_registered){
+			UnregisterHotKey(skin_window, atom_value);
+			hot_keys.erase(hot_key.as_ulong);
+		}
+		//
+		if (atom_value != 0) GlobalDeleteAtom(atom_value);
+	}
+
+	void run_command(){ RmExecute(skin, command); }
 
 private:
 
 	// return a Virtual-Key Code
-	static unsigned translate_key_code(LPCWSTR wstr){
-		unsigned result = 0U;
+	static unsigned short translate_key_code(LPCWSTR wstr){
+		unsigned short result = 0x00;
 		// get length
 		size_t len = wcslen(wstr);
 		if (len == 0) return result;
@@ -138,13 +203,13 @@ private:
 		}
 		else{
 			if (wcscmp(tmp, L"LEFT") ==0)
-				result = 0x25U;
+				result = 0x25;
 			else if (wcscmp(tmp, L"UP") == 0)
-				result = 0x26U;
+				result = 0x26;
 			else if (wcscmp(tmp, L"RIGHT") == 0)
-				result = 0x27U;
+				result = 0x27;
 			else if (wcscmp(tmp, L"DOWN") == 0)
-				result = 0x28U;
+				result = 0x28;
 		}
 
 		delete[] tmp;
@@ -154,5 +219,38 @@ private:
 
 };
 
-map<DWORD,HHOOK> rm_measure_data::thread_hooks;
-map<HWND,rm_measure_data *> rm_measure_data::hot_keys;
+static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
+	// from the previous hook: do nothing
+	if (nCode < 0) return CallNextHookEx(NULL, nCode, wParam, lParam);
+	//
+	WCHAR log_message[1024];	// for logging
+	MSG	*detail = (MSG *)lParam;
+	if (detail->message == WM_HOTKEY && detail->wParam == PM_REMOVE){
+		wsprintf(log_message, L"Test.dll: hook hot key: %lx", detail->lParam);
+		RmLog(LOG_DEBUG, log_message);
+		map<unsigned long, void *>::iterator it = hot_keys.find(detail->lParam);
+		if (it != hot_keys.end()){
+			wsprintf(log_message, L"Test.dll: hot key: %lx", detail->lParam);
+			RmLog(LOG_DEBUG, log_message);
+			//reinterpret_cast<rm_measure *>((*it).second)->run_command();
+		}
+	}
+
+	return CallNextHookEx(NULL, nCode, wParam, lParam);
+}
+
+// call after memory object "rm" created(launch/refresh skin: read local .ini file)
+PLUGIN_EXPORT void Initialize(void** data, void* rm)
+{
+	// create data
+	*data = new rm_measure(rm);
+}
+
+// 
+PLUGIN_EXPORT void Reload(void *, void *, double *){}
+
+// 
+PLUGIN_EXPORT void Finalize(void *data)
+{
+	delete reinterpret_cast<rm_measure *>(data);
+}

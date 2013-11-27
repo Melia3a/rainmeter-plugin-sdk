@@ -140,7 +140,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="PluginHotkey.cpp" />
-    <ClCompile Include="PluginTest.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PluginTest.rc" />
