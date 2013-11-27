@@ -15,89 +15,111 @@ typedef map<unsigned long, void *>	hk_map;
 typedef pair<unsigned long, void *>	hk_map_pair;
 
 static hk_map hot_keys;
-static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam);
+static LRESULT CALLBACK HookProc(int, WPARAM, LPARAM);
 
+// features:
+//	thread-safe
+//	actually one hook for a thread, set hook if reference count increase from
+//    0 to 1, unhook if decrease from 1 to 0. for the user, ensure to call
+//    del_hook once for exactly each one call of add_hook
 class thread_hook{
-
-private:
-
-	static unsigned	lock;
-
-	static DWORD	thread_id;
-	static HHOOK	hook;
-	static unsigned	ref_count;
 
 public:
 
-	static void add_hook(const DWORD &curr_tid){
-		// asks for access right
-		unsigned access_count;
-		for (;;){
-			access_count = InterlockedIncrement(&lock);
-			if (access_count == 1) break;
-			InterlockedDecrement(&lock);
-		}
-		//
-		if (thread_id == 0UL){
-			hook = SetWindowsHookEx(WH_GETMESSAGE, HookProc, NULL, curr_tid);
-			if (hook == NULL){
-				RmLog(LOG_ERROR, L"Test.dll: set message hook: failed");
-			}
-			else{
-				thread_id = curr_tid;
-				ref_count = 1U;
-				RmLog(LOG_DEBUG, L"Test.dll: set message hook: succeed");
-			}
-		}
-		else if (thread_id == curr_tid){
-			++ ref_count;	
-		}
-		InterlockedDecrement(&lock);
+	typedef map<DWORD, thread_hook>		id_map;
+	typedef pair<DWORD, thread_hook>	id_map_pair;
+
+private:
+
+	HHOOK		sole_hook;
+	unsigned	ref_count;
+
+public:
+
+	thread_hook(DWORD thread_id){
+
 	}
-	static void del_hook(const DWORD &thread_id){
+
+	~thread_hook(){
+
+	}
+
+public:
+
+	static unsigned lock;
+	static id_map	thread_ids;
+
+public:
+
+	static bool add_hook(const DWORD &thread_id){
+		// get lock by busy waiting
+		while (InterlockedExchange(&lock, TRUE) != FALSE);
+		// find thread ID
+		bool result;
+		id_map::iterator it = thread_ids.find(thread_id);
+		// set hook
+		if (it == thread_ids.end()){
+
+		}
+		// increase reference count
+		else{
+
+		}
+		// return lock
+		InterlockedExchange(&lock, FALSE);
+	}
+
+	static bool del_hook(const DWORD &thread_id){
 
 	}
 
 };
 
-unsigned	thread_hook::lock		= 0U;
-DWORD		thread_hook::thread_id	= 0UL;
-HHOOK		thread_hook::hook		= NULL;
-unsigned	thread_hook::ref_count	= 0U;
+unsigned			thread_hook::lock = FALSE;
+thread_hook::id_map	thread_hook::thread_ids;
 
 class rm_measure{
 
 private:
 
-	void		   *skin;
-	HWND			skin_window;
-	DWORD			skin_thread_id;
+	void	   *skin;
+	HWND		skin_window;
+	DWORD		skin_thread_id;
 
 	union{
-		unsigned long as_ulong;
+		unsigned long
+				as_ulong;
 		struct{
-			unsigned short modifiers;
-			unsigned short vk_code;
-		} as_2ushort;
-	}	 hot_key;
-	WCHAR			command[256];
+			unsigned short
+				modifiers;
+			unsigned short
+				vk_code;
+		}		as_2ushort;
+	}			hot_key;
+	WCHAR		command[256];
 
-	ATOM			atom_value;
-	BOOL			key_registered;
+	ATOM		atom_value;
+	BOOL		set_hook_ok;
+	BOOL		key_registered;
 
 public:
 
 	rm_measure(void *rm):
-		atom_value(0), key_registered(false)
+		atom_value(0), key_registered(false), set_hook_ok(false)
 	{
 		WCHAR log_message[1024];	// for logging
 		// get skin
 		skin = RmGetSkin(rm);
 		// get skin window handle
 		skin_window = RmGetSkinWindow(rm);
-		// get thread id, set hook
+		// get thread id
 		skin_thread_id = GetWindowThreadProcessId(skin_window, NULL);
-		thread_hook::add_hook(skin_thread_id);
+		// assert that the skin windows is created by the current thread
+		DWORD curr_tid = GetCurrentThreadId();
+		if (skin_thread_id != curr_tid){
+			RmLog(LOG_ERROR, L"Test.dll: thread id assertion failed");
+			return;
+		}
 		// read hot key setting
 		LPCWSTR key_name = RmReadString(rm, L"Key", L"");
 		hot_key.as_2ushort.vk_code = translate_key_code(key_name);
@@ -123,7 +145,7 @@ public:
 		if (key_ctrl) wsprintf(log_message+wcslen(log_message), L"CTRL+");
 		if (key_shift) wsprintf(log_message+wcslen(log_message), L"SHIFT+");
 		if (key_win) wsprintf(log_message+wcslen(log_message), L"WIN+");
-		wsprintf(log_message+wcslen(log_message), L"%hx", hot_key.as_2ushort.vk_code);
+		wsprintf(log_message+wcslen(log_message), L"KEY(%hx)", hot_key.as_2ushort.vk_code);
 		wsprintf(log_message+wcslen(log_message), L": %lx", hot_key.as_ulong);
 		RmLog(LOG_DEBUG, log_message);
 		// get command
@@ -225,7 +247,7 @@ static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
 	//
 	WCHAR log_message[1024];	// for logging
 	MSG	*detail = (MSG *)lParam;
-	if (detail->message == WM_HOTKEY && detail->wParam == PM_REMOVE){
+	if (detail->message == WM_HOTKEY){
 		wsprintf(log_message, L"Test.dll: hook hot key: %lx", detail->lParam);
 		RmLog(LOG_DEBUG, log_message);
 		map<unsigned long, void *>::iterator it = hot_keys.find(detail->lParam);
