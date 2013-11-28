@@ -217,7 +217,8 @@ public:
 		key_registered = RegisterHotKey(skin_window, atom_value,
 			hot_key.as_2ushort.modifiers, hot_key.as_2ushort.vk_code);
 		if (!key_registered){
-			RmLog(LOG_ERROR, L"Test.dll: register hot key: failed");
+			wsprintf(log_message, L"Test.dll: register hot key(code:%lx): failed", hot_key.as_ulong);
+			RmLog(LOG_ERROR, log_message);
 			return;
 		}
 //		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
