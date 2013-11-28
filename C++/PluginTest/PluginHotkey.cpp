@@ -124,6 +124,11 @@ private:
 				vk_code;
 		}		as_2ushort;
 	}			hot_key;
+
+	// for double strike feature
+	DWORD		max_time_interval;
+	DWORD		last_strike;
+
 	WCHAR		command[256];
 
 	BOOL		add_hook_ok;
@@ -133,9 +138,10 @@ private:
 public:
 
 	rm_measure(void *rm):
-		atom_value(0), key_registered(false), add_hook_ok(false)
+		atom_value(0), key_registered(false), add_hook_ok(false), last_strike(0UL)
 	{
-		WCHAR log_message[1024];	// for logging
+		LPCWSTR	str_in = NULL;
+		WCHAR	log_message[1024];	// for logging
 		// get skin
 		skin = RmGetSkin(rm);
 		// get skin window handle
@@ -155,10 +161,10 @@ public:
 			return;
 		}
 		// read hot key setting
-		LPCWSTR key_name = RmReadString(rm, L"Key", L"");
-		hot_key.as_2ushort.vk_code = translate_key_code(key_name);
+		str_in = RmReadString(rm, L"Key", L"");
+		hot_key.as_2ushort.vk_code = translate_key_code(str_in);
 		if (hot_key.as_2ushort.vk_code == 0){
-			wsprintf(log_message, L"Test.dll: Invalid key value: %s", key_name);
+			wsprintf(log_message, L"Test.dll: Invalid key value: %s", str_in);
 			RmLog(LOG_ERROR, log_message);
 			return;
 		}
@@ -182,18 +188,22 @@ public:
 // 		wsprintf(log_message+wcslen(log_message), L"KEY(%hx)", hot_key.as_2ushort.vk_code);
 // 		wsprintf(log_message+wcslen(log_message), L": %lx", hot_key.as_ulong);
 // 		RmLog(LOG_DEBUG, log_message);
-		// get command
-		LPCWSTR cmd_temp = RmReadString(rm, L"Command", L"");
-		wcscpy_s(command, cmd_temp);
+		// read double strike setting
+		int time_int = RmReadInt(rm, L"DoubleStrike", 0);
+		max_time_interval = time_int>0?static_cast<DWORD>(time_int):0UL;
+		// read command
+		str_in = RmReadString(rm, L"Command", L"");
+		wcscpy_s(command, str_in);
 // 		wsprintf(log_message, L"Test.dll: confirm command: %s", command);
 // 		RmLog(LOG_DEBUG, log_message);
-		// get atom
+		// make atom string
 		WCHAR atom_string[256];
-		LPCWSTR skin_name = RmGetSkinName(rm);
-		wcscpy_s(atom_string, skin_name);
-		LPCWSTR measure_name = RmGetMeasureName(rm);
+		str_in = RmGetSkinName(rm);
+		wcscpy_s(atom_string, str_in);
+		str_in = RmGetMeasureName(rm);
 		wcscat_s(atom_string, L"\\");
-		wcscat_s(atom_string, measure_name);
+		wcscat_s(atom_string, str_in);
+		// add atom
 		if (GlobalFindAtom(atom_string) != 0){
 			wsprintf(log_message, L"Test.dll: found global atom: %s", atom_string);
 			RmLog(LOG_ERROR, log_message);
@@ -241,7 +251,21 @@ public:
 		if (add_hook_ok) thread_hook::del_hook(skin_thread_id);
 	}
 
-	void run_command(){ RmExecute(skin, command); }
+	void run_command(DWORD time){
+		if (max_time_interval > 0){
+			if (time > last_strike &&
+				time - last_strike <= max_time_interval){
+				last_strike = 0UL;
+				RmExecute(skin, command);
+			}
+			else{
+				last_strike = time;
+			}
+		}
+		else{
+			RmExecute(skin, command);
+		}
+	}
 
 private:
 
@@ -269,13 +293,16 @@ private:
 		}
 		else{
 			if (wcscmp(tmp, L"LEFT") ==0)
-				result = 0x25;
+				result = VK_LEFT;
 			else if (wcscmp(tmp, L"UP") == 0)
-				result = 0x26;
+				result = VK_UP;
 			else if (wcscmp(tmp, L"RIGHT") == 0)
-				result = 0x27;
+				result = VK_RIGHT;
 			else if (wcscmp(tmp, L"DOWN") == 0)
-				result = 0x28;
+				result = VK_DOWN;
+			else if (wcscmp(tmp, L"CTRL") == 0)
+				result = VK_CONTROL;
+			// ...
 		}
 
 		delete[] tmp;
@@ -299,8 +326,9 @@ static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
 		map<unsigned long, void *>::iterator it = hot_keys.find(detail->lParam);
 		if (it != hot_keys.end()){
 //			wsprintf(log_message, L"Test.dll: process hot key: %lx", detail->lParam);
+//			wsprintf(log_message, L"Test.dll: hot key striked: %ld", detail->time);
 //			RmLog(LOG_DEBUG, log_message);
-			reinterpret_cast<rm_measure *>((*it).second)->run_command();
+			reinterpret_cast<rm_measure *>((*it).second)->run_command(detail->time);
 		}
 		InterlockedExchange(&hot_keys_lock, FALSE);
 	}
