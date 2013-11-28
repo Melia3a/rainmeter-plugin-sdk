@@ -41,6 +41,7 @@ public:
 	thread_hook(HHOOK hk):
 	  sole_hook(hk), ref_count(1U)
 	{
+		// ...
 	}
 
 public:
@@ -106,6 +107,252 @@ public:
 unsigned			thread_hook::thread_ids_lock = FALSE;
 thread_hook::id_map	thread_hook::thread_ids;
 
+class key_map{
+
+private:
+
+	LPCWSTR			name;
+	unsigned short	value;
+
+public:
+
+	key_map(LPCWSTR const &s, const unsigned short &v):
+	  name(s), value(v)
+	{
+		// ...
+	}
+
+private:
+
+	static const int		table_size;
+	static const key_map	table[];
+
+private:
+
+	static unsigned short search_in_table(LPCWSTR name){
+		int l=0, r=table_size, m, rcmp;
+		while (l < r){
+			m = (l+r)>>1;
+			rcmp = wcscmp(name, table[m].name);
+			if (rcmp == 0) return table[m].value;	// return point
+			if (rcmp < 0)	r = m;
+			else			l = m+1;
+		}
+		return 0x00;								// return point
+	}
+
+public:
+
+// 	static void test(){
+// 		for (int i = 1; i < table_size; ++ i)
+// 			if (wcscmp(table[i-1].name, table[i].name) >= 0)
+// 				RmLog(LOG_ERROR, table[i-1].name);
+// 	}
+
+	// return a Virtual-Key Code
+	static unsigned short translate_key_code(LPCWSTR name){
+		// get length
+		size_t len = wcslen(name);
+		if (len == 0) return 0x00;
+		// copy string
+		WCHAR *copy = new WCHAR[len+1];
+		for (size_t i = 0; i <= len; ++ i){
+			if (name[i] >= L'a' && name[i] <= L'z')
+				copy[i] = name[i]&WCHAR(0xDF);		// using capital case
+			else
+				copy[i] = name[i];
+		}
+		// translate
+		unsigned short result = 0x00;
+		// a number or letter
+		if (len == 1 &&
+			(L'0' <= copy[0] && copy[0] <= L'9' ||
+			L'A' <= copy[0] && copy[0] <= L'Z')){
+				result = copy[0];
+		}
+		else{
+			result = search_in_table(copy);
+		}
+
+		delete[] copy;
+
+		return result;
+	}
+
+};
+
+// make it an ordered list, so that we can perform a high-efficiency search
+// NOT supported:
+//	VK_CANCEL		control-break?
+//	VK_SHIFT		modifier
+//	VK_CONTROL		modifier
+//	VK_MENU			modifier: ALT
+//	VK_PAUSE		break?
+//	VK_CAPITAL		state changer: upper/lower case
+//	VK_KANA			IME mode
+//	VK_HANGUEL		IME mode
+//	VK_HANGUL		IME mode
+//	VK_FINAL		IME mode
+//	VK_HANJA		IME mode
+//	VK_KANJI		IME mode
+//	VK_CONVERT		IME mode
+//	VK_NONCONVERT	IME mode
+//	VK_ACCEPT		IME mode
+//	VK_MODECHANGE	IME mode
+//	VK_SELECT		?
+//	VK_PRINT		?
+//	VK_EXECUTE		?
+//	VK_SNAPSHOT		special action: print screen
+//	VK_HELP			?
+//	VK_LWIN			modifier
+//	VK_RWIN			modifier
+//	VK_APPS			?
+//	VK_SLEEP		special action: sleep
+//	VK_SEPARATOR	?
+//	VK_NUMLOCK		state changer: number lock
+//	VK_SCROLL		state changer: scroll lock
+//	0x92-0x96		OEM specific
+//	VK_LSHIFT		modifier
+//	VK_RSHIFT		modifier
+//	VK_LCONTROL		modifier
+//	VK_RCONTROL		modifier
+//	VK_LMENU		modifier
+//	VK_RMENU		modifier
+//	VK_BROWSER_BACK
+//	VK_BROWSER_FORWARD
+//	VK_BROWSER_REFRESH
+//	VK_BROWSER_REFRESH
+//	VK_BROWSER_STOP
+//	VK_BROWSER_SEARCH
+//	VK_BROWSER_FAVORITES
+//	VK_BROWSER_HOME
+//	VK_VOLUME_MUTE
+//	VK_VOLUME_DOWN
+//	VK_VOLUME_UP
+//	VK_MEDIA_NEXT_TRACK
+//	VK_MEDIA_PREV_TRACK
+//	VK_MEDIA_STOP
+//	VK_MEDIA_PLAY_PAUSE
+//	VK_LAUNCH_MAIL
+//	VK_LAUNCH_MEDIA_SELECT
+//	VK_LAUNCH_APP1
+//	VK_LAUNCH_APP2
+//	VK_OEM_8		?
+//	0xe1			OEM specific
+//	VK_OEM_102		?
+//	0xe3-0xe4		OEM specific
+//	VK_PROCESSKEY	?
+//	0xe6			OEM specific
+//	VK_PACKET		?
+//	0xe9-f5			OEM specific
+//	VK_ATTN			?
+//	VK_CRSEL		?
+//	VK_EXSEL		?
+//	VK_EREOF		?
+//	VK_PLAY			?
+//	VK_ZOOM			?
+//	VK_NONAME		?
+//	VK_PA1			?
+//	VK_OEM_CLEAR	?
+const int		key_map::table_size = 94;
+const key_map	key_map::table[key_map::table_size] =
+{
+	key_map(L"\"", VK_OEM_7),
+	key_map(L"'", VK_OEM_7),
+	key_map(L"*", VK_MULTIPLY),
+	key_map(L"+", VK_OEM_PLUS),
+	key_map(L",", VK_OEM_COMMA),
+	key_map(L"-", VK_OEM_MINUS),
+	key_map(L".", VK_OEM_PERIOD),
+	key_map(L"/", VK_OEM_2),
+	key_map(L":", VK_OEM_1),
+	key_map(L";", VK_OEM_1),
+	key_map(L"<", VK_OEM_COMMA),
+	key_map(L"=", VK_OEM_PLUS),
+	key_map(L">", VK_OEM_PERIOD),
+	key_map(L"?", VK_OEM_2),
+	key_map(L"ADD", VK_ADD),
+	key_map(L"BACK", VK_BACK),
+	key_map(L"BACKSPACE", VK_BACK),
+	key_map(L"CLEAR", VK_CLEAR),
+	key_map(L"DEC", VK_DECIMAL),
+	key_map(L"DECIMAL", VK_DECIMAL),
+	key_map(L"DEL", VK_DELETE),
+	key_map(L"DELETE", VK_DELETE),
+	key_map(L"DIV", VK_DIVIDE),
+	key_map(L"DIVIDE", VK_DIVIDE),
+	key_map(L"DOWN", VK_DOWN),
+	key_map(L"END", VK_END),
+	key_map(L"ENT", VK_RETURN),
+	key_map(L"ENTER", VK_RETURN),
+	key_map(L"ESC", VK_ESCAPE),
+	key_map(L"ESCAPE", VK_ESCAPE),
+	key_map(L"F1", VK_F1),
+	key_map(L"F10", VK_F10),
+	key_map(L"F11", VK_F11),
+	key_map(L"F12", VK_F12),
+	key_map(L"F13", VK_F13),
+	key_map(L"F14", VK_F14),
+	key_map(L"F15", VK_F15),
+	key_map(L"F16", VK_F16),
+	key_map(L"F17", VK_F17),
+	key_map(L"F18", VK_F18),
+	key_map(L"F19", VK_F19),
+	key_map(L"F2", VK_F2),
+	key_map(L"F20", VK_F20),
+	key_map(L"F21", VK_F21),
+	key_map(L"F22", VK_F22),
+	key_map(L"F23", VK_F23),
+	key_map(L"F24", VK_F24),
+	key_map(L"F3", VK_F3),
+	key_map(L"F4", VK_F4),
+	key_map(L"F5", VK_F5),
+	key_map(L"F6", VK_F6),
+	key_map(L"F7", VK_F7),
+	key_map(L"F8", VK_F8),
+	key_map(L"F9", VK_F9),
+	key_map(L"HOME", VK_HOME),
+	key_map(L"INS", VK_INSERT),
+	key_map(L"INSERT", VK_INSERT),
+	key_map(L"LBUTTON", VK_LBUTTON),
+	key_map(L"LEFT", VK_LEFT),
+	key_map(L"MBUTTON", VK_MBUTTON),
+	key_map(L"MUL", VK_MULTIPLY),
+	key_map(L"MULTIPLY", VK_MULTIPLY),
+	key_map(L"NUM0", VK_NUMPAD0),
+	key_map(L"NUM1", VK_NUMPAD1),
+	key_map(L"NUM2", VK_NUMPAD2),
+	key_map(L"NUM3", VK_NUMPAD3),
+	key_map(L"NUM4", VK_NUMPAD4),
+	key_map(L"NUM5", VK_NUMPAD5),
+	key_map(L"NUM6", VK_NUMPAD6),
+	key_map(L"NUM7", VK_NUMPAD7),
+	key_map(L"NUM8", VK_NUMPAD8),
+	key_map(L"NUM9", VK_NUMPAD9),
+	key_map(L"PAGE DOWN", VK_NEXT),
+	key_map(L"PAGE UP", VK_PRIOR),
+	key_map(L"PAGE-DOWN", VK_NEXT),
+	key_map(L"PAGE-UP", VK_PRIOR),
+	key_map(L"RBUTTON", VK_RBUTTON),
+	key_map(L"RIGHT", VK_RIGHT),
+	key_map(L"SPACE", VK_SPACE),
+	key_map(L"SUB", VK_SUBTRACT),
+	key_map(L"SUBTRACT", VK_SUBTRACT),
+	key_map(L"TAB", VK_TAB),
+	key_map(L"UP", VK_UP),
+	key_map(L"XBUTTON1", VK_XBUTTON1),
+	key_map(L"XBUTTON2", VK_XBUTTON2),
+	key_map(L"[", VK_OEM_4),
+	key_map(L"\\", VK_OEM_5),
+	key_map(L"]", VK_OEM_6),
+	key_map(L"_", VK_OEM_MINUS),
+	key_map(L"`", VK_OEM_3),
+	key_map(L"{", VK_OEM_4),
+	key_map(L"|", VK_OEM_5),
+	key_map(L"}", VK_OEM_6),
+	key_map(L"~", VK_OEM_3)
+};
+
 class rm_measure{
 
 private:
@@ -116,13 +363,13 @@ private:
 
 	union{
 		unsigned long
-				as_ulong;
+				as_1x8;
 		struct{
 			unsigned short
 				modifiers;
 			unsigned short
 				vk_code;
-		}		as_2ushort;
+		}		as_2x4;
 	}			hot_key;
 
 	// for double strike feature
@@ -162,8 +409,8 @@ public:
 		}
 		// read hot key setting
 		str_in = RmReadString(rm, L"Key", L"");
-		hot_key.as_2ushort.vk_code = translate_key_code(str_in);
-		if (hot_key.as_2ushort.vk_code == 0){
+		hot_key.as_2x4.vk_code = key_map::translate_key_code(str_in);
+		if (hot_key.as_2x4.vk_code == 0){
 			wsprintf(log_message, L"Test.dll: Invalid key value: %s", str_in);
 			RmLog(LOG_ERROR, log_message);
 			return;
@@ -175,11 +422,11 @@ public:
 		key_shift = RmReadInt(rm, L"Shift", 0);
 		key_win = RmReadInt(rm, L"Win", 0);
 		// make modifiers
-		hot_key.as_2ushort.modifiers = 0x00;
-		if (key_alt)	hot_key.as_2ushort.modifiers |= MOD_ALT;
-		if (key_ctrl)	hot_key.as_2ushort.modifiers |= MOD_CONTROL;
-		if (key_shift)	hot_key.as_2ushort.modifiers |= MOD_SHIFT;
-		if (key_win)	hot_key.as_2ushort.modifiers |= MOD_WIN;
+		hot_key.as_2x4.modifiers = 0x00;
+		if (key_alt)	hot_key.as_2x4.modifiers |= MOD_ALT;
+		if (key_ctrl)	hot_key.as_2x4.modifiers |= MOD_CONTROL;
+		if (key_shift)	hot_key.as_2x4.modifiers |= MOD_SHIFT;
+		if (key_win)	hot_key.as_2x4.modifiers |= MOD_WIN;
 // 		wsprintf(log_message, L"Test.dll: confirm hot key: ");
 // 		if (key_alt) wsprintf(log_message+wcslen(log_message), L"ALT+");
 // 		if (key_ctrl) wsprintf(log_message+wcslen(log_message), L"CTRL+");
@@ -220,16 +467,16 @@ public:
 //		RmLog(LOG_DEBUG, log_message);
 		// register hot key
 		key_registered = RegisterHotKey(skin_window, atom_value,
-			hot_key.as_2ushort.modifiers, hot_key.as_2ushort.vk_code);
+			hot_key.as_2x4.modifiers, hot_key.as_2x4.vk_code);
 		if (!key_registered){
-			wsprintf(log_message, L"Test.dll: register hot key(code:%lx): failed", hot_key.as_ulong);
+			wsprintf(log_message, L"Test.dll: register hot key(code:%lx): failed", hot_key.as_1x8);
 			RmLog(LOG_ERROR, log_message);
 			return;
 		}
 //		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
 		// get lock by busy waiting
 		while (InterlockedExchange(&hot_keys_lock, TRUE) != FALSE);
-		hot_keys[hot_key.as_ulong] = this;	// add to hotkey list
+		hot_keys[hot_key.as_1x8] = this;	// add to hotkey list
 		InterlockedExchange(&hot_keys_lock, FALSE);
 	}
 
@@ -239,7 +486,7 @@ public:
 			// get lock by busy waiting
 			while (InterlockedExchange(&hot_keys_lock, TRUE) != FALSE);
 			// remove hot key map
-			hot_keys.erase(hot_key.as_ulong);
+			hot_keys.erase(hot_key.as_1x8);
 			// return lock
 			InterlockedExchange(&hot_keys_lock, FALSE);
 			//
@@ -252,62 +499,21 @@ public:
 	}
 
 	void run_command(DWORD time){
+		// using double-strike mode
 		if (max_time_interval > 0){
 			if (time > last_strike &&
 				time - last_strike <= max_time_interval){
-				last_strike = 0UL;
+				last_strike = 0UL;			// set time
 				RmExecute(skin, command);
 			}
 			else{
-				last_strike = time;
+				last_strike = time;			// clean time
 			}
 		}
+		// normal mode
 		else{
 			RmExecute(skin, command);
 		}
-	}
-
-private:
-
-	// return a Virtual-Key Code
-	static unsigned short translate_key_code(LPCWSTR wstr){
-		unsigned short result = 0x00;
-		// get length
-		size_t len = wcslen(wstr);
-		if (len == 0) return result;
-		// copy string
-		WCHAR *tmp = new WCHAR[len+1];
-		for (size_t i = 0; i <= len; ++ i){
-			if (wstr[i] >= L'a' && wstr[i] <= L'z')
-				tmp[i] = wstr[i]&WCHAR(0xDF);		// use capital case
-			else
-				tmp[i] = wstr[i];
-		}
-		// translate
-		if (len == 1){
-			// a number
-			if (tmp[0] >= L'0' && tmp[0] <= L'9' ||
-				tmp[0] >= L'A' && tmp[0] <= L'Z'){
-					result = tmp[0];
-			}
-		}
-		else{
-			if (wcscmp(tmp, L"LEFT") ==0)
-				result = VK_LEFT;
-			else if (wcscmp(tmp, L"UP") == 0)
-				result = VK_UP;
-			else if (wcscmp(tmp, L"RIGHT") == 0)
-				result = VK_RIGHT;
-			else if (wcscmp(tmp, L"DOWN") == 0)
-				result = VK_DOWN;
-			else if (wcscmp(tmp, L"CTRL") == 0)
-				result = VK_CONTROL;
-			// ...
-		}
-
-		delete[] tmp;
-
-		return result;
 	}
 
 };
@@ -323,11 +529,13 @@ static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
 //		RmLog(LOG_DEBUG, log_message);
 		// get lock by busy waiting
 		while (InterlockedExchange(&hot_keys_lock, TRUE) != FALSE);
-		map<unsigned long, void *>::iterator it = hot_keys.find(detail->lParam);
+		map<unsigned long, void *>::iterator it = hot_keys.find(
+			static_cast<unsigned long>(detail->lParam));
 		if (it != hot_keys.end()){
 //			wsprintf(log_message, L"Test.dll: process hot key: %lx", detail->lParam);
 //			wsprintf(log_message, L"Test.dll: hot key striked: %ld", detail->time);
 //			RmLog(LOG_DEBUG, log_message);
+			nCode = -1;
 			reinterpret_cast<rm_measure *>((*it).second)->run_command(detail->time);
 		}
 		InterlockedExchange(&hot_keys_lock, FALSE);
