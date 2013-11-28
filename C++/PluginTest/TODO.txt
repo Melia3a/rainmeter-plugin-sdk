@@ -1,0 +1,7 @@
+1. modifier MOD_NOREPEAT feature support: I don't know what it is yet
+2. double press feature support: make use of the TIME member of the MSG structure
+3. complete translate_key_code:
+	some ideas here:
+	maybe we could use another map table to accelerate the key code mapping?
+	support more(or all) keys. the last version is a demo which supports only letter & number KEYs
+	

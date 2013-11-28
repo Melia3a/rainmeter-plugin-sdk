@@ -11,11 +11,6 @@ using std::list;
 #include <Windows.h>
 #include "../../API/RainmeterAPI.h"
 
-// TODO:
-//   1. MOD_NOREPEAT feature support
-//   2. double press feature support
-//   3. complete translate_key_code
-
 typedef map<unsigned long, void *>	hk_map;
 typedef pair<unsigned long, void *>	hk_map_pair;
 
