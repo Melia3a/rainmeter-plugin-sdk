@@ -1,4 +1,4 @@
-#define APSTUDIO_READONLY_SYMBOLS
+﻿#define APSTUDIO_READONLY_SYMBOLS
 #include <windows.h>
 #undef APSTUDIO_READONLY_SYMBOLS
 
@@ -25,7 +25,7 @@ BEGIN
         BLOCK "040904E4"
         BEGIN
             VALUE "FileVersion", "1.0.0.0"
-            VALUE "LegalCopyright", "� 2012 - Birunthan Mohanathas"
+            VALUE "LegalCopyright", "© 2012 - Birunthan Mohanathas"
             VALUE "ProductName", "Rainmeter"
 #ifdef _WIN64
             VALUE "ProductVersion", "2.5.0.1842 (64-bit)"
