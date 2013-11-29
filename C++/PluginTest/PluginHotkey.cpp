@@ -254,7 +254,7 @@ public:
 //	VK_NONAME		?
 //	VK_PA1			?
 //	VK_OEM_CLEAR	?
-const int		key_map::table_size = 94;
+const int		key_map::table_size = 95;
 const key_map	key_map::table[key_map::table_size] =
 {
 	key_map(L"\"", VK_OEM_7),
@@ -272,6 +272,7 @@ const key_map	key_map::table[key_map::table_size] =
 	key_map(L">", VK_OEM_PERIOD),
 	key_map(L"?", VK_OEM_2),
 	key_map(L"ADD", VK_ADD),
+	key_map(L"ADDITION", VK_ADD),
 	key_map(L"BACK", VK_BACK),
 	key_map(L"BACKSPACE", VK_BACK),
 	key_map(L"CLEAR", VK_CLEAR),
