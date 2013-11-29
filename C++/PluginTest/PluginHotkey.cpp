@@ -254,7 +254,7 @@ public:
 //	VK_NONAME		?
 //	VK_PA1			?
 //	VK_OEM_CLEAR	?
-const int		key_map::table_size = 95;
+const int		key_map::table_size = 96;
 const key_map	key_map::table[key_map::table_size] =
 {
 	key_map(L"\"", VK_OEM_7),
@@ -340,6 +340,7 @@ const key_map	key_map::table[key_map::table_size] =
 	key_map(L"SUB", VK_SUBTRACT),
 	key_map(L"SUBTRACT", VK_SUBTRACT),
 	key_map(L"TAB", VK_TAB),
+	key_map(L"TABLE", VK_TAB),
 	key_map(L"UP", VK_UP),
 	key_map(L"XBUTTON1", VK_XBUTTON1),
 	key_map(L"XBUTTON2", VK_XBUTTON2),

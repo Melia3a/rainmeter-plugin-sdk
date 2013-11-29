@@ -32,9 +32,10 @@ Esc				Esc/Escape				可用
 主键盘区：
 数字键0-9		0, 1, etc.				可用
 字母键A-Z		A, B, etc.				可用
-制表键			Tab						可用
+制表键			Tab/Table				可用
 回删键			Back/Backspace			可用
 回车键			Ent/Enter				可用
+空格键			Space					可用
 大小写切换								不可用。此键用于切换状态，注册为全局热键后造成原来的切换功能失效或混乱
 快捷菜单键								不可用。就是那个上面画着鼠标和菜单图案的键，按一下相等于鼠标右键点击一下
 修饰键									不可用。包括前面说的左右Ctrl，Alt，Shift和Windows键等
