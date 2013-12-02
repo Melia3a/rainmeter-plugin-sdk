@@ -1,192 +1,99 @@
-#include <cstdio>
-#include <cstring>
-
 #include <Windows.h>
+#include <tlhelp32.h>
+#include <string.h>
+#include <Psapi.h>
+
 #include "../../API/RainmeterAPI.h"
 
-// TODO:
-//   1. MOD_NOREPEAT feature support
-//   2. double press feature support
-//   3. assert that the skin window thread is also these functions' caller
-//		because the Windows API RegisterHotKey has the feature which saying:
-//		This function cannot associate a hot key with a window created by another thread.
-//   4. assert that functions exported of this DLL will be used only in one thread of any process.
-//		meaning that the solution here is not for multi-thread
-//	 * typically, the RM create all its active skins (read file, create internal object,
-//	   create windows for each skin, call these functions) in a single thread
+#pragma comment(lib,"Psapi.lib")
 
-class rm_measure_data{
+// Overview: This is a blank canvas on which to build your plugin.
 
-private:
+// Note: GetString and ExecuteBang have been commented out. If you need
+// GetString and/or ExecuteBang and you have read what they are used for
+// from the SDK docs, uncomment the function(s). Otherwise leave them
+// commented out (or get rid of them)!
 
-	void	   *skin;
-	HWND		skin_window;
-	DWORD		skin_window_thread_id;
-
-	unsigned	modifiers, vk_code;
-	ATOM		atom_value;
-	BOOL		hot_key_registered;
-
-	HHOOK		hook;
-
-public:
-
-	rm_measure_data(void *rm):
-	  modifiers(0U), atom_value(0), hot_key_registered(false)
-	{
-		WCHAR log_message[1024];	// for logging
-		// get skin
-		skin = RmGetSkin(rm);
-		// get skin window handle
-		skin_window = RmGetSkinWindow(rm);
-		// get thread id
-		skin_window_thread_id = GetWindowThreadProcessId(skin_window, NULL);
-		// read hot key setting
-		LPCWSTR key_name = RmReadString(rm, L"Key", L"");
-		vk_code = translate_key_code(key_name);
-		if (vk_code == 0){
-			wsprintf(log_message, L"Test.dll: Invalid key value: %s", key_name);
-			RmLog(LOG_ERROR, log_message);
-			return;
-		}
-		// read modifiers setting
-		int key_alt, key_ctrl, key_shift, key_win;
-		key_alt = RmReadInt(rm, L"Alt", 0);
-		key_ctrl = RmReadInt(rm, L"Ctrl", 0);
-		key_shift = RmReadInt(rm, L"Shift", 0);
-		key_win = RmReadInt(rm, L"Win", 0);
-		// make modifiers
-		if (key_alt)	modifiers |= MOD_ALT;
-		if (key_ctrl)	modifiers |= MOD_CONTROL;
-		if (key_shift)	modifiers |= MOD_SHIFT;
-		if (key_win)	modifiers |= MOD_WIN;
-		// for debug
-		wsprintf(log_message, L"Test.dll: confirm hot key: ");
-		if (key_alt) wsprintf(log_message+wcslen(log_message), L"ALT+");
-		if (key_ctrl) wsprintf(log_message+wcslen(log_message), L"CTRL+");
-		if (key_shift) wsprintf(log_message+wcslen(log_message), L"SHIFT+");
-		if (key_win) wsprintf(log_message+wcslen(log_message), L"WIN+");
-		wsprintf(log_message+wcslen(log_message), L"KEY(code:%x)", vk_code);
-		RmLog(LOG_DEBUG, log_message);
-		// get atom
-		WCHAR atom_string[256];
-		LPCWSTR skin_name = RmGetSkinName(rm);
-		wcscpy_s(atom_string, skin_name);
-		LPCWSTR measure_name = RmGetMeasureName(rm);
-		wcscat_s(atom_string, L"\\");
-		wcscat_s(atom_string, measure_name);
-		if (GlobalFindAtom(atom_string) != 0){
-			wsprintf(log_message, L"Test.dll: found global atom: %s", atom_string);
-			RmLog(LOG_ERROR, log_message);
-			return;
-		}
-		atom_value = GlobalAddAtom(atom_string);
-		wsprintf(log_message, L"Test.dll: add global atom: %s: ", atom_string);
-		if (atom_value < 0xC000){
-			wsprintf(log_message+wcslen(log_message), L"failed");
-			RmLog(LOG_ERROR, log_message);
-			return;
-		}
-		wsprintf(log_message+wcslen(log_message), L"succeed");
-		RmLog(LOG_DEBUG, log_message);
-		// register hot key
-		hot_key_registered = RegisterHotKey(skin_window, atom_value, modifiers, vk_code);
-		if (!hot_key_registered){
-			RmLog(LOG_ERROR, L"Test.dll: register hot key: failed");
-			return;
-		}
-		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
-		// set hook
-		hook = SetWindowsHookEx(WH_GETMESSAGE, HookProc, NULL, skin_window_thread_id);
-		if (hook == NULL){
-			RmLog(LOG_ERROR, L"Test.dll: set message hook: failed");
-			return;
-		}
-		RmLog(LOG_DEBUG, L"Test.dll: set message hook: succeed");
-	}
-
-	~rm_measure_data(){
-		// 
-		if (hook != NULL)
-			UnhookWindowsHookEx(hook);
-		// unregister hot key
-		if (hot_key_registered)
-			UnregisterHotKey(skin_window, atom_value);
-		// delete atom
-		if (atom_value != 0)
-			GlobalDeleteAtom(atom_value);
-	}
-
-private:
-
-	// return a Virtual-Key Code
-	static unsigned translate_key_code(LPCWSTR wstr){
-		unsigned result = 0U;
-		// get length
-		size_t len = wcslen(wstr);
-		if (len == 0) return result;
-		// copy string
-		WCHAR *tmp = new WCHAR[len+1];
-		for (size_t i = 0; i <= len; ++ i){
-			if (wstr[i] >= L'a' && wstr[i] <= L'z')
-				tmp[i] = wstr[i]&WCHAR(0xDF);		// use capital case
-			else
-				tmp[i] = wstr[i];
-		}
-		// translate
-		if (len == 1){
-			// a number
-			if (tmp[0] >= L'0' && tmp[0] <= L'9' ||
-				tmp[0] >= L'A' && tmp[0] <= L'Z'){
-					result = tmp[0];
-			}
-		}
-		else{
-			if (wcscmp(tmp, L"LEFT") ==0)
-				result = 0x25U;
-			else if (wcscmp(tmp, L"UP") == 0)
-				result = 0x26U;
-			else if (wcscmp(tmp, L"RIGHT") == 0)
-				result = 0x27U;
-			else if (wcscmp(tmp, L"DOWN") == 0)
-				result = 0x28U;
-		}
-
-		delete[] tmp;
-
-		return result;
-	}
-
-public:
-
-	static void release_data(void *data){
-		delete reinterpret_cast<rm_measure_data *>(data);
-	}
-
-public:
-
-	static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
-		MSG	*detail = (MSG *)lParam;
-		if (detail->message == WM_HOTKEY)
-			MessageBox(NULL, L"Fired by rainmeter", L"Test.dll", MB_OK);
-
-		return CallNextHookEx(NULL, nCode, wParam, lParam);
-	}
-
+struct Measure
+{
+	WCHAR str_A[260];
 };
 
-// call after memory object "rm" created(launch/refresh skin: read local .ini file)
 PLUGIN_EXPORT void Initialize(void** data, void* rm)
 {
-	// create data
-	*data = new rm_measure_data(rm);
+	Measure* measure = new Measure;
+	*data = measure;
 }
 
-// 
-PLUGIN_EXPORT void Reload(void *, void *, double *){}
-
-// 
-PLUGIN_EXPORT void Finalize(void *data)
+PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue)
 {
-	rm_measure_data::release_data(data);
+	Measure* measure = (Measure*)data;
+
+	LPCWSTR value = RmReadString(rm, L"Process", L"");
+
+	memset(measure->str_A, 0, sizeof(measure->str_A) );
+
+	wcscpy_s(measure->str_A , value) ;
+
+}
+
+PLUGIN_EXPORT double Update(void* data)
+{
+
+	Measure* measure = (Measure*)data;
+
+	PROCESSENTRY32 pe32;
+	PROCESS_MEMORY_COUNTERS pmc;
+
+	pe32.dwSize=sizeof(pe32);
+
+	HANDLE hProcessSnap=::CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS,0);
+
+	if(hProcessSnap==INVALID_HANDLE_VALUE)
+	{
+		return 0.0;
+	}
+
+	BOOL bMore=::Process32First(hProcessSnap,&pe32);
+
+	while (bMore)
+	{
+		if (wcscmp(pe32.szExeFile, measure->str_A) == 0)
+		{
+
+			HANDLE h_Process=OpenProcess(PROCESS_ALL_ACCESS, FALSE, pe32.th32ProcessID);
+
+			if (h_Process == NULL){
+				RmLog(LOG_ERROR, L"failed to open process");
+				break;
+			}
+
+			GetProcessMemoryInfo(h_Process,&pmc,sizeof(pmc));
+
+			CloseHandle(h_Process);
+
+			return pmc.WorkingSetSize ;
+		}
+
+		bMore=::Process32Next(hProcessSnap,&pe32);
+
+	}
+	return 0.0;
+}
+
+//PLUGIN_EXPORT LPCWSTR GetString(void* data)
+//{
+//	Measure* measure = (Measure*)data;
+//	return L"";
+//}
+
+//PLUGIN_EXPORT void ExecuteBang(void* data, LPCWSTR args)
+//{
+//	Measure* measure = (Measure*)data;
+//}
+
+PLUGIN_EXPORT void Finalize(void* data)
+{
+	Measure* measure = (Measure*)data;
+	delete measure;
 }

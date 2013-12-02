@@ -18,6 +18,12 @@
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="PluginTest.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="PluginTest.rc" />
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{54CC591D-7CE4-4F47-89C4-A18748487BA1}</ProjectGuid>
     <RootNamespace>PluginTest</RootNamespace>
@@ -69,20 +75,20 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IntDir>x32\$(Configuration)\</IntDir>
-    <TargetName>GlobalHotKey</TargetName>
+    <TargetName>PluginTest</TargetName>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IntDir>x64\$(Configuration)\</IntDir>
-    <TargetName>GlobalHotKey</TargetName>
+    <TargetName>PluginTest</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <TargetName>GlobalHotKey</TargetName>
+    <TargetName>PluginTest</TargetName>
     <OutDir>x32\$(Configuration)\</OutDir>
     <IntDir>x32\$(Configuration)\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <TargetName>GlobalHotKey</TargetName>
+    <TargetName>PluginTest</TargetName>
     <OutDir>x64\$(Configuration)\</OutDir>
     <IntDir>x64\$(Configuration)\</IntDir>
   </PropertyGroup>
@@ -150,12 +156,6 @@
       <PreprocessorDefinitions>WIN64;_UNICODE;UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ResourceCompile>
   </ItemDefinitionGroup>
-  <ItemGroup>
-    <ClCompile Include="PluginGlobalHotKey.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ResourceCompile Include="PluginGlobalHotKey.rc" />
-  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

@@ -7,8 +7,8 @@ using std::map;
 #include <list>
 using std::list;
 
-
 #include <Windows.h>
+
 #include "../../API/RainmeterAPI.h"
 
 typedef map<unsigned long, void *>	hk_map;
@@ -546,7 +546,7 @@ static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-// call after memory object "rm" created(launch/refresh skin: read local .ini file)
+// load/reload from Rainmeter runtime plugin object
 PLUGIN_EXPORT void Initialize(void** data, void* rm)
 {
 	// create data
