@@ -14,7 +14,9 @@ using std::list;
 typedef map<unsigned long, void *>	hk_map;
 typedef pair<unsigned long, void *>	hk_map_pair;
 
+// simple lock using busy waiting
 static unsigned	hot_keys_lock = FALSE;
+// map each registered HotKey to a rm_measure data
 static hk_map	hot_keys;
 
 static LRESULT CALLBACK HookProc(int, WPARAM, LPARAM);
