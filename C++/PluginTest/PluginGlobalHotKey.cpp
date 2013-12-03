@@ -11,32 +11,32 @@ using std::list;
 
 #include "../../API/RainmeterAPI.h"
 
+// this is used to map a hot key combination to a rm_measure object so that
+// various callbacks can be called by HookProc
 typedef map<unsigned long, void *>	hk_map;
 typedef pair<unsigned long, void *>	hk_map_pair;
 
 // simple lock using busy waiting
 static unsigned	hot_keys_lock = FALSE;
-// map each registered HotKey to a rm_measure data
+// map each registered HotKey to a rm_measure object
 static hk_map	hot_keys;
 
+// hook callback
 static LRESULT CALLBACK HookProc(int, WPARAM, LPARAM);
 
-// features:
-//	thread-safe
-//	actually one hook for a thread, set hook if reference count increase from
-//    0 to 1, unhook if decrease from 1 to 0. for the user, ensure to call
-//    del_hook once for exactly each one call of add_hook
+// a hook with reference count
 class thread_hook{
 
 public:
 
+	// map a thread id to a thread_hook object
 	typedef map<DWORD, thread_hook>		id_map;
 	typedef pair<DWORD, thread_hook>	id_map_pair;
 
 private:
 
-	HHOOK		sole_hook;
-	unsigned	ref_count;
+	HHOOK		sole_hook;	// real hook handle
+	unsigned	ref_count;	// reference count
 
 public:
 
@@ -63,22 +63,20 @@ public:
 		if (it == thread_ids.end()){
 			HHOOK hk = SetWindowsHookEx(WH_GETMESSAGE, HookProc, NULL, thread_id);
 			if (hk == NULL){
-				RmLog(LOG_ERROR, L"Test.dll: set message hook: failed");
+				RmLog(LOG_ERROR, L"GlobalHotKey.dll: set hook: failed");
 				result = false;
 			}
 			else{
 				thread_ids.insert(id_map_pair(thread_id, thread_hook(hk)));
-//				RmLog(LOG_DEBUG, L"Test.dll: set message hook: succeed");
 				result = true;
 			}
 		}
 		// increase reference count
 		else{
 			++ (*it).second.ref_count;
-//			RmLog(LOG_DEBUG, L"Test.dll: increase message hook reference count");
 			result = true;
 		}
-		// return lock
+		// release lock
 		InterlockedExchange(&thread_ids_lock, FALSE);
 
 		return result;
@@ -92,23 +90,22 @@ public:
 		if (it != thread_ids.end()){
 			if (-- (*it).second.ref_count == 0){
 				if (!UnhookWindowsHookEx((*it).second.sole_hook))
-					RmLog(LOG_ERROR, L"Test.dll: unhook: failed");
-//				else
-//					RmLog(LOG_DEBUG, L"Test.dll: unhook: succeed");
+					RmLog(LOG_ERROR, L"GlobalHotKey.dll: unhook: failed");
 				thread_ids.erase(it);	// erase it anyway!
 			}
-//			else
-//				RmLog(LOG_DEBUG, L"Test.dll: decrease message hook reference count");
 		}
-		// return lock
+		// release lock
 		InterlockedExchange(&thread_ids_lock, FALSE);
 	}
 
 };
 
+// implementation of static data member
 unsigned			thread_hook::thread_ids_lock = FALSE;
 thread_hook::id_map	thread_hook::thread_ids;
 
+// map key name string (pointing to static string data section in this
+// implementation) to a virtual-key code
 class key_map{
 
 private:
@@ -131,6 +128,7 @@ private:
 
 private:
 
+	// binary search
 	static unsigned short search_in_table(LPCWSTR name){
 		int l=0, r=table_size, m, rcmp;
 		while (l < r){
@@ -145,18 +143,12 @@ private:
 
 public:
 
-// 	static void test(){
-// 		for (int i = 1; i < table_size; ++ i)
-// 			if (wcscmp(table[i-1].name, table[i].name) >= 0)
-// 				RmLog(LOG_ERROR, table[i-1].name);
-// 	}
-
 	// return a Virtual-Key Code
 	static unsigned short translate_key_code(LPCWSTR name){
 		// get length
 		size_t len = wcslen(name);
 		if (len == 0) return 0x00;
-		// copy string
+		// make a copy of the string
 		WCHAR *copy = new WCHAR[len+1];
 		for (size_t i = 0; i <= len; ++ i){
 			if (name[i] >= L'a' && name[i] <= L'z')
@@ -166,7 +158,7 @@ public:
 		}
 		// translate
 		unsigned short result = 0x00;
-		// a number or letter
+		// a number or letter (guess that the users will use this keys in most case)
 		if (len == 1 &&
 			(L'0' <= copy[0] && copy[0] <= L'9' ||
 			L'A' <= copy[0] && copy[0] <= L'Z')){
@@ -183,8 +175,10 @@ public:
 
 };
 
+// implementation of static table
 // make it an ordered list, so that we can perform a high-efficiency search
-// NOT supported:
+
+// NOT supported (yet):
 //	VK_CANCEL		control-break?
 //	VK_SHIFT		modifier
 //	VK_CONTROL		modifier
@@ -357,14 +351,17 @@ const key_map	key_map::table[key_map::table_size] =
 	key_map(L"~", VK_OEM_3)
 };
 
+// data object for rainmeter
 class rm_measure{
 
 private:
-
+	// keep this message for convenience
 	void	   *skin;
 	HWND		skin_window;
 	DWORD		skin_thread_id;
-
+	//
+	WCHAR		command[256];				// -warning: specified size buffer
+	// hot key as a union
 	union{
 		unsigned long
 				as_1x8;
@@ -375,13 +372,10 @@ private:
 				vk_code;
 		}		as_2x4;
 	}			hot_key;
-
 	// for double strike feature
 	DWORD		max_time_interval;
 	DWORD		last_strike;
-
-	WCHAR		command[256];
-
+	// state
 	BOOL		add_hook_ok;
 	ATOM		atom_value;
 	BOOL		key_registered;
@@ -391,8 +385,8 @@ public:
 	rm_measure(void *rm):
 		atom_value(0), key_registered(false), add_hook_ok(false), last_strike(0UL)
 	{
-		LPCWSTR	str_in = NULL;
-		WCHAR	log_message[1024];	// for logging
+		LPCWSTR	str_in = NULL;		// for reading
+		WCHAR	log_message[1024];	// for logging -warning: specified size buffer
 		// get skin
 		skin = RmGetSkin(rm);
 		// get skin window handle
@@ -400,22 +394,19 @@ public:
 		// get thread id
 		skin_thread_id = GetWindowThreadProcessId(skin_window, NULL);
 		// assert that the skin windows is created by the current thread
-		DWORD curr_tid = GetCurrentThreadId();
-		if (skin_thread_id != curr_tid){
-			RmLog(LOG_ERROR, L"Test.dll: thread id assertion failed");
+		DWORD curr_thread_id = GetCurrentThreadId();
+		if (skin_thread_id != curr_thread_id){
+			RmLog(LOG_ERROR, L"GlobalHotKey.dll: thread id assertion failed");
 			return;
 		}
 		// add hook
 		add_hook_ok = thread_hook::add_hook(skin_thread_id);
-		if (!add_hook_ok){
-			RmLog(LOG_ERROR, L"Test.dll: add hook: failed");
-			return;
-		}
+		if (!add_hook_ok) return;
 		// read hot key setting
 		str_in = RmReadString(rm, L"Key", L"");
 		hot_key.as_2x4.vk_code = key_map::translate_key_code(str_in);
 		if (hot_key.as_2x4.vk_code == 0){
-			wsprintf(log_message, L"Test.dll: Invalid key value: %s", str_in);
+			wsprintf(log_message, L"GlobalHotKey.dll: invalid key value: %s", str_in);
 			RmLog(LOG_ERROR, log_message);
 			return;
 		}
@@ -431,24 +422,14 @@ public:
 		if (key_ctrl)	hot_key.as_2x4.modifiers |= MOD_CONTROL;
 		if (key_shift)	hot_key.as_2x4.modifiers |= MOD_SHIFT;
 		if (key_win)	hot_key.as_2x4.modifiers |= MOD_WIN;
-// 		wsprintf(log_message, L"Test.dll: confirm hot key: ");
-// 		if (key_alt) wsprintf(log_message+wcslen(log_message), L"ALT+");
-// 		if (key_ctrl) wsprintf(log_message+wcslen(log_message), L"CTRL+");
-// 		if (key_shift) wsprintf(log_message+wcslen(log_message), L"SHIFT+");
-// 		if (key_win) wsprintf(log_message+wcslen(log_message), L"WIN+");
-// 		wsprintf(log_message+wcslen(log_message), L"KEY(%hx)", hot_key.as_2ushort.vk_code);
-// 		wsprintf(log_message+wcslen(log_message), L": %lx", hot_key.as_ulong);
-// 		RmLog(LOG_DEBUG, log_message);
 		// read double strike setting
 		int time_int = RmReadInt(rm, L"DoubleStrike", 0);
 		max_time_interval = time_int>0?static_cast<DWORD>(time_int):0UL;
 		// read command
 		str_in = RmReadString(rm, L"Command", L"");
 		wcscpy_s(command, str_in);
-// 		wsprintf(log_message, L"Test.dll: confirm command: %s", command);
-// 		RmLog(LOG_DEBUG, log_message);
 		// make atom string
-		WCHAR atom_string[256];
+		WCHAR atom_string[256];				// warning: specified size buffer
 		str_in = RmGetSkinName(rm);
 		wcscpy_s(atom_string, str_in);
 		str_in = RmGetMeasureName(rm);
@@ -456,42 +437,42 @@ public:
 		wcscat_s(atom_string, str_in);
 		// add atom
 		if (GlobalFindAtom(atom_string) != 0){
-			wsprintf(log_message, L"Test.dll: found global atom: %s", atom_string);
+			wsprintf(log_message,
+				L"GlobalHotKey.dll: found global atom: %s",
+				atom_string);
 			RmLog(LOG_ERROR, log_message);
 			return;
 		}
 		atom_value = GlobalAddAtom(atom_string);
-		wsprintf(log_message, L"Test.dll: add global atom: %s: ", atom_string);
 		if (atom_value < 0xC000){
-			wsprintf(log_message+wcslen(log_message), L"failed");
+			wsprintf(log_message,
+				L"GlobalHotKey.dll: add global atom \"%s\": failed",
+				atom_string);
 			RmLog(LOG_ERROR, log_message);
 			return;
 		}
-//		wsprintf(log_message+wcslen(log_message), L"succeed");
-//		RmLog(LOG_DEBUG, log_message);
 		// register hot key
 		key_registered = RegisterHotKey(skin_window, atom_value,
 			hot_key.as_2x4.modifiers, hot_key.as_2x4.vk_code);
 		if (!key_registered){
-			wsprintf(log_message, L"Test.dll: register hot key(code:%lx): failed", hot_key.as_1x8);
+			wsprintf(log_message,
+				L"GlobalHotKey.dll: register hot key(code:%lx): failed",
+				hot_key.as_1x8);
 			RmLog(LOG_ERROR, log_message);
 			return;
 		}
-//		RmLog(LOG_DEBUG, L"Test.dll: register hot key: succeed");
-		// get lock by busy waiting
+		// 
 		while (InterlockedExchange(&hot_keys_lock, TRUE) != FALSE);
-		hot_keys[hot_key.as_1x8] = this;	// add to hotkey list
+		hot_keys[hot_key.as_1x8] = this;	// add to hot key list
 		InterlockedExchange(&hot_keys_lock, FALSE);
 	}
 
 	~rm_measure(){
 		//
 		if (key_registered){
-			// get lock by busy waiting
+			// 
 			while (InterlockedExchange(&hot_keys_lock, TRUE) != FALSE);
-			// remove hot key map
 			hot_keys.erase(hot_key.as_1x8);
-			// return lock
 			InterlockedExchange(&hot_keys_lock, FALSE);
 			//
 			UnregisterHotKey(skin_window, atom_value);
@@ -526,21 +507,16 @@ static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
 	// from the previous hook: do nothing
 	if (nCode < 0) return CallNextHookEx(NULL, nCode, wParam, lParam);
 	//
-//	WCHAR log_message[1024];	// for logging
 	MSG	*detail = (MSG *)lParam;
 	if (detail->message == WM_HOTKEY){
-//		wsprintf(log_message, L"Test.dll: hook hot key: %lx", detail->lParam);
-//		RmLog(LOG_DEBUG, log_message);
 		// get lock by busy waiting
 		while (InterlockedExchange(&hot_keys_lock, TRUE) != FALSE);
 		map<unsigned long, void *>::iterator it = hot_keys.find(
 			static_cast<unsigned long>(detail->lParam));
 		if (it != hot_keys.end()){
-//			wsprintf(log_message, L"Test.dll: process hot key: %lx", detail->lParam);
-//			wsprintf(log_message, L"Test.dll: hot key striked: %ld", detail->time);
-//			RmLog(LOG_DEBUG, log_message);
 			nCode = -1;
-			reinterpret_cast<rm_measure *>((*it).second)->run_command(detail->time);
+			reinterpret_cast<rm_measure *>((*it).second)->
+				run_command(detail->time);
 		}
 		InterlockedExchange(&hot_keys_lock, FALSE);
 	}

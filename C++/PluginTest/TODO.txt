@@ -1,12 +1,2 @@
-1. modifier MOD_NOREPEAT feature support: I don't know what it is yet
-2. double press feature support: make use of the TIME member of the MSG structure
-3. complete translate_key_code:
-	some ideas here:
-	maybe we could use another map table to accelerate the key code mapping?
-	support more(or all) keys. the last version is a demo which supports only letter & number KEYs
-4. beware of the string buffer overflow. the plugin is currently using a specified size for the command option and log buffer, this minor could be considered latter.
-
-2, 3 DONE
-
-1. modifier MOD_NOREPEAT feature support: I don't know what it is yet
+1. modifier MOD_NOREPEAT feature support
 2. beware of the string buffer overflow. the plugin is currently using a specified size for the command option and log buffer, this minor could be considered latter.

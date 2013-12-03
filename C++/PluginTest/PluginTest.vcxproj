@@ -19,10 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="PluginTest.cpp" />
+    <ClCompile Include="PluginGlobalHotKey.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="PluginTest.rc" />
+    <ResourceCompile Include="PluginGlobalHotKey.rc" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{54CC591D-7CE4-4F47-89C4-A18748487BA1}</ProjectGuid>
@@ -75,15 +75,15 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IntDir>x32\$(Configuration)\</IntDir>
-    <TargetName>PluginTest</TargetName>
+    <TargetName>Test</TargetName>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <IntDir>x64\$(Configuration)\</IntDir>
-    <TargetName>PluginTest</TargetName>
+    <TargetName>Test</TargetName>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <TargetName>PluginTest</TargetName>
+    <TargetName>Test</TargetName>
     <OutDir>x32\$(Configuration)\</OutDir>
     <IntDir>x32\$(Configuration)\</IntDir>
   </PropertyGroup>
