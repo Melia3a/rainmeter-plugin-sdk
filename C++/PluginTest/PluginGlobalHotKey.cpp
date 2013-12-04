@@ -12,7 +12,7 @@ using std::list;
 #include "../../API/RainmeterAPI.h"
 
 // this is used to map a hot key combination to a rm_measure object so that
-// various callbacks can be called by HookProc
+// various callbacks (objects' member functions) can be called by HookProc
 typedef map<unsigned long, void *>	hk_map;
 typedef pair<unsigned long, void *>	hk_map_pair;
 
