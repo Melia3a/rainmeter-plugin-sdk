@@ -524,17 +524,14 @@ static LRESULT CALLBACK HookProc(int nCode, WPARAM wParam, LPARAM lParam){
 	return CallNextHookEx(NULL, nCode, wParam, lParam);
 }
 
-// load/reload from Rainmeter runtime plugin object
 PLUGIN_EXPORT void Initialize(void** data, void* rm)
 {
 	// create data
 	*data = new rm_measure(rm);
 }
 
-// 
 PLUGIN_EXPORT void Reload(void *, void *, double *){}
 
-// 
 PLUGIN_EXPORT void Finalize(void *data)
 {
 	delete reinterpret_cast<rm_measure *>(data);
