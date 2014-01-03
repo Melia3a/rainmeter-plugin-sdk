@@ -1,2 +1,0 @@
-1. modifier MOD_NOREPEAT feature support
-2. beware of the string buffer overflow. the plugin is currently using a specified size for the command option and log buffer, this minor could be considered latter.
