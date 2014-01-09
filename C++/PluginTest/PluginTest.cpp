@@ -33,8 +33,8 @@ PLUGIN_EXPORT void Initialize(void **data, void *rm){
 
 // called after Initialize.
 // while dynamic variables is enabled, the Rainmeter runtime measure object can
-// be changed in runtime, and this function will be called on every update
-// cycle before Update, you should synchronize the data here.
+// be changed in runtime, and this function will be called on every update cycle
+// before Reload to synchronize some data.
 PLUGIN_EXPORT void Reload(void* data, void* rm, double* maxValue){
 	
 }
@@ -45,14 +45,9 @@ PLUGIN_EXPORT double Update(void* data){
 	return 0.0;
 }
 
-// return a string representation of the measure. 
-// if you want a natural string version of a number, do NOT export this
-// function because Rainmeter can do this already by default.
+// return a string representation of the measure
 PLUGIN_EXPORT LPCWSTR GetString(void* data){
-	// format your data to a string here
-	// ...
 
-	// and return it
 	return L"";
 }
 

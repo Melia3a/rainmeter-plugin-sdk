@@ -19,10 +19,10 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="PluginTest.cpp" />
+    <ResourceCompile Include="PluginGlobalHotKey.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="PluginTest.rc" />
+    <ClCompile Include="PluginGlobalHotKey2.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{54CC591D-7CE4-4F47-89C4-A18748487BA1}</ProjectGuid>
