@@ -22,7 +22,7 @@
     <ResourceCompile Include="PluginGlobalHotKey.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="PluginGlobalHotKey2.cpp" />
+    <ClCompile Include="PluginGlobalHotKey.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{54CC591D-7CE4-4F47-89C4-A18748487BA1}</ProjectGuid>

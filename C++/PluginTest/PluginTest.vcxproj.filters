@@ -4,6 +4,6 @@
     <ResourceCompile Include="PluginGlobalHotKey.rc" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="PluginGlobalHotKey2.cpp" />
+    <ClCompile Include="PluginGlobalHotKey.cpp" />
   </ItemGroup>
 </Project>
